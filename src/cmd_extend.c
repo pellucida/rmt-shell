@@ -1,0 +1,111 @@
+# include	<stdlib.h>
+# include	<limits.h>
+# include	<stdbool.h>
+# include	<errno.h>
+# include	<sys/types.h>
+# include	<sys/stat.h>
+
+# include	"constant.h"
+# include	"util.h"
+# include	"rmt.h"
+# include	"access.h"
+# include	"cmd_extend.h"
+
+struct  entry { 
+        char*   name;   
+        void    (*action)(arg_t* arg, char*,int,char**);
+};
+typedef	struct	entry	entry_t;
+
+static  void    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
+        if (argc == 2) { 
+                if (access_check (argv[1]) == true) {
+                	if (mkdir (argv[1], 0770)==ok) {
+				reply_ext (arg, 0, "mkdir");
+			}
+			else	{
+				report_error (arg, errno);
+			}
+		}
+		else {
+			report_error (arg, EACCES);
+		}
+	}	
+	else	{
+		report_error (arg, EINVAL);
+	}
+}
+static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
+        if (argc == 2) { 
+                if (access_check (argv[1]) == true) {
+			struct	stat	sb;
+			char	buf [PATH_MAX];
+			if (stat (argv[1], &sb)==ok) {
+				int	ftype	= decode_filetype (sb.st_mode);
+				char*	owner	= getusername (sb.st_uid);
+				char*	group	= getusername (sb.st_gid);
+				snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s", ftype, sb.st_mode & 03777,
+						owner, group, sb.st_size, argv[1]);
+
+				reply_ext (arg, 0, buf);
+			}
+			else	{
+				report_error (arg, errno);
+			}
+		}
+		else {
+			report_error (arg, EACCES);
+		}
+	}	
+	else	{
+		report_error (arg, EINVAL);
+	}
+}
+
+static	entry_t   table[] = {
+	{ "rmt", do_rmt },
+        { "mkdir", do_mkdir }, 
+        { "stat", do_stat }, 
+};
+static  size_t  tablesize       = sizeof(table)/sizeof(table[0]);
+
+static	int	lookup (char* base, struct entry** ep) {
+	int	i	= 0;
+	int	j	= tablesize;
+	int	result	= false;
+	struct	entry*	e	= 0;
+	while (i!=j) {
+		e	= &table [i];
+		if (strcmp (base, e->name)==0) {
+			*ep	= e;
+			j	= i;
+			result	= true;
+		}
+		else	{
+			++i;
+		}
+	}
+	return	result;
+}
+
+void	cmd_extend (arg_t* arg, int argc, char* argv[]) {
+	int	result	= err;
+
+	if (strcmp (argv[1], "-c")==0) {
+		int	nargc	= 0;
+		char**	nargv	= 0;
+		char*	cmd	= 0;
+		char*	base	= 0;
+		struct	entry*	e	= 0;
+		parse_args (argv[2], &nargc, &nargv);
+
+		cmd	= nargv[0];
+		base	= basename (cmd);
+		if (lookup (base, &e)==true) {
+			e->action (arg, base, nargc, nargv);
+			exit (EXIT_SUCCESS);
+		}
+	}
+	report_error (arg, ENOTSUP);
+	exit (EXIT_FAILURE);
+}
