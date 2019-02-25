@@ -6,6 +6,7 @@
 # include	<stdlib.h>
 # include	<stdbool.h>
 # include	<ctype.h>
+# include	<fnmatch.h>
 
 
 # include	"constant.h"
@@ -97,25 +98,14 @@ int	access_init () {
 	return	result;
 }
 
-int	access_check (char* devstr) {
+static	int	check_simple (char* path) {
 	int	result	= false;
 	int	i	= 0;
 	int	j	= access.used;
 	while (i!=j) {
 		char* 	entry	= access.list [i];
-		size_t	len	= strlen (entry);
-		if (len > 0 && entry[len-1] == '/') {
-			if (strncmp (entry, devstr, len)==0) {
-				char*	t	= strstr (&devstr[len-1], "/..");
-				if (t==0 || (t[3] != '\0' && t[3] != '/')) {
-					result	= true;
-				}
-			}
-		}
-		else if (strcmp (entry, devstr)==0) {
+		if (fnmatch (entry, path, FNM_NOESCAPE|FNM_PATHNAME)==0) {
 			result	= true;
-		}
-		if (result == true) {
 			j	= i;
 		}
 		else	{
@@ -125,3 +115,21 @@ int	access_check (char* devstr) {
 	return	result;
 }
 
+// where devstr and resolved path differ check they are both permitted
+// eg /tmp/null -> /dev/null
+// check /tmp/null is ok, resolve /tmp/null into /dev/null check that too is ok
+
+int	access_check (char* devstr) {
+	int	result	= check_simple (devstr);;
+	int	i	= 0;
+	int	j	= access.used;
+	if (result) {
+		char*	canonical	= resolve_path (devstr);
+		if (canonical) {
+			if (strcmp (devstr, canonical)!=0) {
+				result	= check_simple (canonical);
+			}
+		}
+	}
+	return	result;
+}

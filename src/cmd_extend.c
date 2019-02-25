@@ -1,9 +1,11 @@
 # include	<stdlib.h>
+# include	<string.h>
 # include	<limits.h>
 # include	<stdbool.h>
 # include	<errno.h>
 # include	<sys/types.h>
 # include	<sys/stat.h>
+# include	<sys/utsname.h>
 
 # include	"constant.h"
 # include	"util.h"
@@ -43,11 +45,11 @@ static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 			if (stat (argv[1], &sb)==ok) {
 				int	ftype	= decode_filetype (sb.st_mode);
 				char*	owner	= getusername (sb.st_uid);
-				char*	group	= getusername (sb.st_gid);
-				snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s", ftype, sb.st_mode & 03777,
+				char*	group	= getgroupname (sb.st_gid);
+				int	len	= snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s\n", ftype, sb.st_mode & 03777,
 						owner, group, sb.st_size, argv[1]);
+				full_write (arg->output, buf, len);
 
-				reply_ext (arg, 0, buf);
 			}
 			else	{
 				report_error (arg, errno);
@@ -61,11 +63,23 @@ static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 		report_error (arg, EINVAL);
 	}
 }
+static  void    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
+	struct	utsname	u;
+	int	result	= uname (&u);
+	if (result==ok) {
+		size_t	len	= strlen (u.sysname);
+		char	buf [len+1];
+		memcpy (buf, u.sysname, len);
+		buf[len]	= '\n';
+		result	= full_write (arg->output, buf, len+1);
+	}
+}
 
 static	entry_t   table[] = {
 	{ "rmt", do_rmt },
         { "mkdir", do_mkdir }, 
         { "stat", do_stat }, 
+        { "uname", do_uname }, 
 };
 static  size_t  tablesize       = sizeof(table)/sizeof(table[0]);
 
@@ -97,15 +111,18 @@ void	cmd_extend (arg_t* arg, int argc, char* argv[]) {
 		char*	cmd	= 0;
 		char*	base	= 0;
 		struct	entry*	e	= 0;
-		parse_args (argv[2], &nargc, &nargv);
-
-		cmd	= nargv[0];
-		base	= basename (cmd);
-		if (lookup (base, &e)==true) {
-			e->action (arg, base, nargc, nargv);
-			exit (EXIT_SUCCESS);
+		if (parse_args (argv[2], &nargc, &nargv) == ok) {
+			cmd	= nargv[0];
+			base	= basename (cmd);
+			if (lookup (base, &e)==true) {
+				e->action (arg, base, nargc, nargv);
+				exit (EXIT_SUCCESS);
+			}
+		}
+		else	{
+			report_error (arg, errno);
 		}
 	}
-	report_error (arg, ENOTSUP);
+	else	report_error (arg, ENOTSUP);
 	exit (EXIT_FAILURE);
 }

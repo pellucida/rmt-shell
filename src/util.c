@@ -3,8 +3,10 @@
 */
 # include	<stdio.h>
 # include	<string.h>
+# include	<stdlib.h>
 # include	<sys/types.h>
 # include	<sys/stat.h>
+# include	<errno.h>
 # include	<pwd.h>
 # include	<grp.h>
 
@@ -98,6 +100,44 @@ char*	getgroupname (gid_t gid) {
 	}
 	else	{
 		snprintf (buf,sizeof(buf), "%ld", gid);
+	}
+	return	result;
+}
+
+// create dir + "/" + last
+static	char*	compose_path (char* dir, char* last) {
+	size_t	len	= strlen (dir);
+	size_t	more	= strlen (last);
+	size_t	newsize	= len+1+more;
+	char*	result	= realloc (dir, newsize);
+	if (result) {
+		result [len]   = '/';
+		memcpy (&result[len+1], last, more);
+	}
+	return	result;
+}
+
+// resolve the path with realpath(3) for access checking
+// but the last component may not yet exist
+// ie program wants to create it.
+
+char*	resolve_path (char* path) {
+	size_t	len	= strlen (path);
+	char	copy [len+1];
+	memcpy (copy, path, len+1);
+	char*	result	= realpath (copy, 0);	// malloc'd by realpath
+	if (result==0) {
+		if (errno == ENOENT) {		// assume last component doesn't exist
+			char*	t	= strrchr (copy, '/');
+			if (t) {
+				size_t	more	= strlen (t+1);
+				*t	= '\0';
+				result	= realpath (copy, 0);	// try again with path prefix
+				if (result) {	// put the bits back together
+					result	= compose_path (result, t+1);
+				}
+			}
+		}
 	}
 	return	result;
 }

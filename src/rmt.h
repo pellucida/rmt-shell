@@ -9,6 +9,7 @@ typedef	struct arg	{
 	int	input;
 	int	output;
 	int	tape;
+	int	magtape;
 	struct	{
 		size_t	size;
 		char*	buffer;

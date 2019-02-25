@@ -5,7 +5,9 @@
 # include	<stdlib.h>
 // # include	<stdio.h>
 # include	<stdbool.h>
+# include	<errno.h>
 
+# include	"constant.h"
 # include	"util.h"
 
 /*
@@ -14,11 +16,11 @@
 // [state]
 //  START        START  WORD   STRING  WORD    WORD   FIN
 //  WORD         START  WORD   STRING  WORD    WORD   FIN
-//  STRING       STRING STRING WORD    STRING  STRING FIN
-//  SSTRIN       SSTRIN SSTRIN SSTRIN  WORD    SSTRIN FIN
+//  STRING       STRING STRING WORD    STRING  STRING SERR
+//  SSTRIN       SSTRIN SSTRIN SSTRIN  WORD    SSTRIN SERR
 */
 
-enum state { FIN = 0, START = 1, WORD = 2, STRING = 3, SSTRIN = 4, OTHER = 5, };
+enum state { FIN = 0, START = 1, WORD = 2, STRING = 3, SSTRIN = 4, OTHER = 5, SERR = 6, };
 typedef	enum state	state_t;
 
 enum ctype { END = 0, ESCAPE = 1, SPACE = 2, QUOTE = 3, SQUOT = 4, };
@@ -97,7 +99,7 @@ struct	state_action {
 };
 typedef struct	state_action table_t;
 
-static	table_t	table[][6]	= {
+static	table_t	table[][7]	= {
     [START] = {
 	[SPACE]	 = { .next = START, .action = skip },
 	[ESCAPE] = { .next = WORD,  .action = copy },
@@ -120,7 +122,7 @@ static	table_t	table[][6]	= {
 	[QUOTE]  = { .next = WORD,  .action = skip },
 	[SQUOT]  = { .next = STRING,.action = copy },
 	[OTHER]  = { .next = STRING,.action = copy },
-	[END]    = { .next = FIN,   .action = argv },
+	[END]    = { .next = SERR,  .action = argv },
     },
     [SSTRIN]= {
 	[SPACE]	 = { .next = SSTRIN,.action = copy },
@@ -128,7 +130,7 @@ static	table_t	table[][6]	= {
 	[QUOTE]  = { .next = SSTRIN,.action = copy },
 	[SQUOT]  = { .next = WORD,  .action = skip },
 	[OTHER]  = { .next = SSTRIN,.action = copy },
-	[END]    = { .next = FIN,   .action = argv },
+	[END]    = { .next = SERR,  .action = argv },
     },
 };
 
@@ -138,6 +140,7 @@ static	table_t	table[][6]	= {
 // Create and return argc, argv[]
 //
 int	parse_args (char* line, int* argcp,char*** argvp) {
+	int	result	= err;
 	int	len	= strlen (line);
 	args_t	args	= {
 			.argc = 0, 
@@ -148,11 +151,18 @@ int	parse_args (char* line, int* argcp,char*** argvp) {
 	char*	s	= line;
 	table_t	entry	= { .next = START, .action = skip };
 
-	while (entry.next != FIN) {
+	while (entry.next != FIN && entry.next != SERR) {
 		categ_t	x = classify (&s);
 		entry	= table [entry.next][x.type];
 		entry.action (&args, &word, x);
 	}
-	*argcp	= args.argc;
-	*argvp	= args.argv;
+	if (entry.next == FIN) {
+		*argcp	= args.argc;
+		*argvp	= args.argv;
+		result	= ok;
+	}
+	else	{
+		errno	= EINVAL;
+	}
+	return	result;
 }	

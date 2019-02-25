@@ -13,5 +13,6 @@ int	decode_filetype (int st_mode);
 
 char*	getusername (uid_t uid);
 char*	getgroupname (gid_t uid);
+char*	resolve_path (char* path);
 
 # endif

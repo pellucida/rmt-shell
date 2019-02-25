@@ -8,6 +8,8 @@
 # include	<stdlib.h>
 # include	<stdbool.h>
 # include	<errno.h>
+# define	USESYSLOG	1
+# include	<syslog.h>
 
 # include	<sys/types.h>
 # include	<sys/stat.h>
@@ -216,6 +218,7 @@ static	int	cmd_open (arg_t* arg) {
 				close (arg->tape);
 				arg->tape	= -1;
 			}
+			
 			if (access_check (device) == true) {
 				struct	stat	sb;
 				int	mode	= strtoul (rwmode, 0, 10);
@@ -229,15 +232,17 @@ static	int	cmd_open (arg_t* arg) {
 //	"r"		==> ENOENT
 				if (lstat (device, &sb)==ok) {
 					// File
-					if (S_ISREG (sb.st_mode)) {
+					if (S_ISREG (sb.st_mode) || S_ISLNK (sb.st_mode) ) {
 						if (mode==O_WRONLY) {
 							mode	|= O_TRUNC;
 						}	
 						tape	= open (device, mode);
+						arg->magtape	= 0;
 					}
 					// Tape?
 					else if (S_ISCHR (sb.st_mode)) {
 						tape	= open (device, mode);
+						arg->magtape	= 1;
 					}
 					// Refuse anything else
 					else	{
@@ -303,16 +308,17 @@ static	int	cmd_seek (arg_t* arg) {
 static	int	cmd_mtio_status (arg_t* arg) {
 	char	dummy [PATH_MAX];
 	int	result	= ok;
-	read_str (arg->input, dummy, sizeof(dummy));
+//	read_str (arg->input, dummy, sizeof(dummy));
 
+	
 #ifdef MTIOCGET
 	struct mtget	op;
-	if (ioctl (arg->tape, MTIOCGET, (char *) &op) == ok) {
+	if (ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
 		reply (arg, sizeof (op));
 		full_write (arg->output, (char *) &op, sizeof (op));
 	}
 	else	{
-		report_error (arg, errno);
+		report_error (arg, ENOTTY);
 		result	= err;
 	}
 #endif
@@ -357,9 +363,13 @@ void	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 	char	command	= 0;
 	while (1) {
 		cmd_t	cmd	= 0;
+		
 		if (safe_read (arg->input, &command, 1) != 1)
 			cmd_quit (arg);
 		cmd	= CMDS [command];
+		if (USESYSLOG)
+			syslog (LOG_INFO, "cmd = %c\n", command);
+
 		if (cmd) {
 			cmd (arg);
 		}
@@ -376,7 +386,9 @@ int main (int argc, char **argv) {
 		.tape = -1,
 		.record = { .buffer = 0, .size = 0, }
 	};
-	
+	if (USESYSLOG) {
+		openlog ("rmt-ext", LOG_PID|LOG_NDELAY, LOG_LOCAL7);
+	}	
 	if (access_init () == err) {
 		report_error (&arg, EACCES);
 	  	exit (EXIT_FAILURE);
