@@ -15,15 +15,17 @@
 
 struct  entry { 
         char*   name;   
-        void    (*action)(arg_t* arg, char*,int,char**);
+        int    (*action)(arg_t* arg, char*,int,char**);
 };
 typedef	struct	entry	entry_t;
 
-static  void    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
+static  int    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
+	int	result	= EXIT_FAILURE;
         if (argc == 2) { 
                 if (access_check (argv[1]) == true) {
                 	if (mkdir (argv[1], 0770)==ok) {
 				reply_ext (arg, 0, "mkdir");
+				result	= EXIT_SUCCESS;
 			}
 			else	{
 				report_error (arg, errno);
@@ -36,8 +38,11 @@ static  void    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
 	else	{
 		report_error (arg, EINVAL);
 	}
+	return	result;
 }
-static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
+static  int    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
+	int	result	= EXIT_FAILURE;
+	
         if (argc == 2) { 
                 if (access_check (argv[1]) == true) {
 			struct	stat	sb;
@@ -49,7 +54,7 @@ static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 				int	len	= snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s\n", ftype, sb.st_mode & 03777,
 						owner, group, sb.st_size, argv[1]);
 				full_write (arg->output, buf, len);
-
+				result	= EXIT_SUCCESS;
 			}
 			else	{
 				report_error (arg, errno);
@@ -62,17 +67,23 @@ static  void    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 	else	{
 		report_error (arg, EINVAL);
 	}
+	return	result;
 }
-static  void    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
+static  int    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
 	struct	utsname	u;
-	int	result	= uname (&u);
-	if (result==ok) {
+	int	result	= EXIT_FAILURE;
+	if (uname (&u) == ok) {
 		size_t	len	= strlen (u.sysname);
 		char	buf [len+1];
 		memcpy (buf, u.sysname, len);
 		buf[len]	= '\n';
-		result	= full_write (arg->output, buf, len+1);
+		full_write (arg->output, buf, len+1);
+		result	= EXIT_SUCCESS;
 	}
+	else	{
+		full_write (arg->output, "\n", 1);
+	}
+	return	result;
 }
 
 static	entry_t   table[] = {
@@ -115,8 +126,7 @@ void	cmd_extend (arg_t* arg, int argc, char* argv[]) {
 			cmd	= nargv[0];
 			base	= basename (cmd);
 			if (lookup (base, &e)==true) {
-				e->action (arg, base, nargc, nargv);
-				exit (EXIT_SUCCESS);
+				exit (e->action (arg, base, nargc, nargv));
 			}
 		}
 		else	{

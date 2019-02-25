@@ -16,5 +16,5 @@ typedef	struct arg	{
 	}	record;
 }	arg_t;
 
-void	do_rmt (arg_t*, char*, int, char**);
+int	do_rmt (arg_t*, char*, int, char**);
 # endif

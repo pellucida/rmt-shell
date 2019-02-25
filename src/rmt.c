@@ -8,8 +8,6 @@
 # include	<stdlib.h>
 # include	<stdbool.h>
 # include	<errno.h>
-# define	USESYSLOG	1
-# include	<syslog.h>
 
 # include	<sys/types.h>
 # include	<sys/stat.h>
@@ -359,7 +357,7 @@ static	cmd_t	CMDS [256] =	{
 };
 
 
-void	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
+int	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 	char	command	= 0;
 	while (1) {
 		cmd_t	cmd	= 0;
@@ -367,8 +365,6 @@ void	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 		if (safe_read (arg->input, &command, 1) != 1)
 			cmd_quit (arg);
 		cmd	= CMDS [command];
-		if (USESYSLOG)
-			syslog (LOG_INFO, "cmd = %c\n", command);
 
 		if (cmd) {
 			cmd (arg);
@@ -386,9 +382,6 @@ int main (int argc, char **argv) {
 		.tape = -1,
 		.record = { .buffer = 0, .size = 0, }
 	};
-	if (USESYSLOG) {
-		openlog ("rmt-ext", LOG_PID|LOG_NDELAY, LOG_LOCAL7);
-	}	
 	if (access_init () == err) {
 		report_error (&arg, EACCES);
 	  	exit (EXIT_FAILURE);

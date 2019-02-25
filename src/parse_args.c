@@ -20,7 +20,7 @@
 //  SSTRIN       SSTRIN SSTRIN SSTRIN  WORD    SSTRIN SERR
 */
 
-enum state { FIN = 0, START = 1, WORD = 2, STRING = 3, SSTRIN = 4, OTHER = 5, SERR = 6, };
+enum state { FIN = 0, START = 1, WORD = 2, STRING = 3, SSTRIN = 4, OTHER = 5, SERR = 6, NSTATES };
 typedef	enum state	state_t;
 
 enum ctype { END = 0, ESCAPE = 1, SPACE = 2, QUOTE = 3, SQUOT = 4, };
@@ -99,7 +99,7 @@ struct	state_action {
 };
 typedef struct	state_action table_t;
 
-static	table_t	table[][7]	= {
+static	table_t	table[][NSTATES]	= {
     [START] = {
 	[SPACE]	 = { .next = START, .action = skip },
 	[ESCAPE] = { .next = WORD,  .action = copy },
