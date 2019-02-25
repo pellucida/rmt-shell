@@ -121,8 +121,6 @@ static	int	check_simple (char* path) {
 
 int	access_check (char* devstr) {
 	int	result	= check_simple (devstr);;
-	int	i	= 0;
-	int	j	= access.used;
 	if (result) {
 		char*	canonical	= resolve_path (devstr);
 		if (canonical) {
