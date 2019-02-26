@@ -66,6 +66,11 @@ void	reply_ext (arg_t* arg, int status, char* more) {
 	snprintf (buf, sizeof(buf), "A%ld\n%s\n", status, more);
 	full_write (arg->output, buf, strlen (buf));
 }
+void	reply_ext_nostatus (arg_t* arg, char* more) {
+	char	buf [BUFSIZ];
+	snprintf (buf, sizeof(buf), "%s\n", more);
+	full_write (arg->output, buf, strlen (buf));
+}
 
 static	int	read_str (int fd, char* buf, size_t size) {
 	int	result	= err;

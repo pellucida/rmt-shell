@@ -51,9 +51,9 @@ static  int    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 				int	ftype	= decode_filetype (sb.st_mode);
 				char*	owner	= getusername (sb.st_uid);
 				char*	group	= getgroupname (sb.st_gid);
-				int	len	= snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s\n", ftype, sb.st_mode & 03777,
+				int	len	= snprintf (buf, sizeof (buf), "%c %o %s %s %ld %s", ftype, sb.st_mode & 03777,
 						owner, group, sb.st_size, argv[1]);
-				full_write (arg->output, buf, len);
+				reply_ext_nostatus (arg, buf);
 				result	= EXIT_SUCCESS;
 			}
 			else	{
@@ -76,8 +76,8 @@ static  int    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
 		size_t	len	= strlen (u.sysname);
 		char	buf [len+1];
 		memcpy (buf, u.sysname, len);
-		buf[len]	= '\n';
-		full_write (arg->output, buf, len+1);
+		buf[len]	= '\0';
+		reply_ext_nostatus (arg, buf);
 		result	= EXIT_SUCCESS;
 	}
 	else	{
