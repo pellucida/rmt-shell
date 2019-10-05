@@ -19,3 +19,5 @@ to the shell function of rmt.
 <br/>
 eg HPUX vxdump, Tru64 vdump and xfsdump
 (We can lie ;)
+
+Supports SSH forced command through $SSH_ORIGINAL_COMMAND
