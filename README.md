@@ -16,6 +16,9 @@ Remote clients eg dump, gtar will invoke /sbin/rmt -c /etc/rmt
 
 Some remote clients also do $RSH $SHELL -c uname 
 so <i>uname</i> is an internal command rmt shell capability.
+Programs like xfsdump use uname to determine the type of remote
+system (Irix, Linux) which is then used to determine the mtio(4)
+tape device driver op codes to perform rewinds etc.
 <br/>
 eg HPUX vxdump, Tru64 vdump and xfsdump
 (We can lie ;)
