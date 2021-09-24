@@ -127,6 +127,138 @@ long	get_number (int fd) {
 	}
 	return	result;
 }
+/* ------------------ */
+struct	openflags_t	{
+	char*	name;
+	int	flag;
+};
+typedef	struct	openflags_t	openflags_t;
+
+# define	FLAG_ENTRY(x)	{ .name=#x, .flag=x,}
+static	openflags_t openflags[]	= {
+ 	FLAG_ENTRY( O_RDONLY),
+ 	FLAG_ENTRY( O_WRONLY),
+ 	FLAG_ENTRY( O_RDWR),
+ 	FLAG_ENTRY( O_CREAT),
+ 	FLAG_ENTRY( O_TRUNC),
+ 	FLAG_ENTRY( O_APPEND),
+};
+static	size_t	N_OPENFLAGS	= sizeof(openflags)/sizeof(openflags[0]);
+# undef	FLAG_ENTRY
+static	int	openflag_lookup (char* name, int* mode) {
+	int	result	= err;
+	int	i	= 0;
+	int	j	= N_OPENFLAGS;
+	while (i!=j){
+		if (strcmp (name, openflags[i].name)==0){
+			j	= i;
+			*mode	= openflags[i].flag;
+			result	= ok;
+		}
+		else	{
+			++i;
+		}
+	}
+	return	result;
+}
+static	inline	int	isflag(char* f) { return f[0] == 'O' && f[1] == '_'; }
+static	inline	int	iswhite(int ch) { return ch == ' ' || ch == '\t'; }
+
+static	int	get_open_mode (char* rmtflags, int* rwmodep) {
+	int	result	= ok;
+	int	rend	= err;
+	int	ch	= 0;
+	char*	flag	= 0;
+	int	rwmode	= 0;
+	int	inflag	= false;
+	while (result != rend) {
+		ch	= *rmtflags;
+		if (inflag) {
+			if (!isalpha(ch)){
+				int	mode	= 0;
+				*rmtflags++	= '\0';
+				inflag	= false;
+				result	= openflag_lookup (flag, &mode);
+				if (result == ok) {
+					rwmode	|= mode;
+				}
+				if (ch == '\0') {
+					rend	= result;
+				}
+			}
+			else	++rmtflags;
+		}
+		else {
+			if (ch=='\0') {
+				rend	= result;
+			}
+			if (iswhite(ch)){
+				++rmtflags;
+			}
+			else if (isflag (rmtflags)) {
+				flag	= rmtflags;
+				rmtflags= &rmtflags[2];
+				inflag	= true;
+			}
+			else	result	= err;
+		}
+	}
+	if (result == ok) {
+		*rwmodep	= rwmode;
+	}
+	return	result;
+}
+
+/* --------------- */
+/*
+// Rmt v0 assumes the file/(tape)device exists
+// but if dumping to a new file need to CREAT file
+// rmt v1 can use symbolic modes O_RDWR|O_CREAT
+// but for v0 clients we can use heuristic below
+// to provide sensible flags to open(2).
+//
+// [ -e device -a -f device ]
+//	"w" 		==> O_WRONLY | O_TRUNC
+// 	"r" "rw"	==> O_RDWR
+// [ -e device -a -c device ]
+//	"r" "rw" "w"	==> requested
+// [ ! -e device ]
+//	"w" "rw"	==> requested | O_CREAT
+//	"r"		==> ENOENT
+*/
+int	heuristic_mode (char* device, int* modep) {
+	int	mode	= *modep;
+	int	result	= ok;
+	struct	stat	sb;
+	if (lstat (device, &sb)==ok) {
+		// File
+		if (S_ISREG (sb.st_mode) || S_ISLNK (sb.st_mode) ) {
+			if (mode==O_WRONLY) {
+				mode	|= O_TRUNC;
+				*modep	= mode;
+			}	
+		}
+		// Tape?
+		else if (S_ISCHR (sb.st_mode)) {
+			;
+		}
+		// Refuse anything else
+		else	{
+			errno	= ENOTSUP;
+			result	= err;
+		}
+	}
+	else if (mode != O_RDONLY ) {
+		mode	|= O_CREAT;
+		*modep	= mode;
+	}
+	else	{
+		errno	= ENOENT;
+		result	= err;
+	}
+	return	result;
+}
+/* ----------------- */
 static	int	cmd_write (arg_t* arg) {
 	size_t	size	= get_number (arg->input);
 	int	result	= ok;
@@ -223,41 +355,23 @@ static	int	cmd_open (arg_t* arg) {
 			}
 			
 			if (access_check (device) == true) {
-				struct	stat	sb;
-				int	mode	= strtoul (rwmode, 0, 10);
+				int	mode	= 0;
 				int	tape	= -1;
 
-// exists(device) && file(device) 
-//	"w" 		==> TRUNC
-// 	"r" "rw"	==>
-// !exists(device) 
-//	"w" "rw"	==> CREAT
-//	"r"		==> ENOENT
-				if (lstat (device, &sb)==ok) {
-					// File
-					if (S_ISREG (sb.st_mode) || S_ISLNK (sb.st_mode) ) {
-						if (mode==O_WRONLY) {
-							mode	|= O_TRUNC;
-						}	
-						tape	= open (device, mode);
-						arg->magtape	= 0;
-					}
-					// Tape?
-					else if (S_ISCHR (sb.st_mode)) {
-						tape	= open (device, mode);
-						arg->magtape	= 1;
-					}
-					// Refuse anything else
-					else	{
-						errno	= ENOTSUP;
-					}
-				}
-				else if (mode != O_RDONLY ) {
-					mode	|= O_CREAT;
-					tape	= open (device, mode, 0660);
+				if (isdigit (rwmode[0])) {
+					mode	= strtoul (rwmode, 0, 10);
+					result	= heuristic_mode (device, &mode);
 				}
 				else	{
-					errno	= ENOENT;
+					result	= get_open_mode (rwmode, &mode);
+				}
+				if (result == ok) {
+					if ((mode & O_CREAT)!=0) {
+						tape	= open (device, mode, 0660);
+					}
+					else	{
+						tape	= open (device, mode);
+					}
 				}
 				if (tape >= 0) {
 					arg->tape	= tape;
