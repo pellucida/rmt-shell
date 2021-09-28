@@ -483,24 +483,111 @@ static	int	cmd_mtioctop (arg_t* arg) {
 		arg->vers	= 1;
 		reply (arg, 1);
 	}
+	else	{
 #ifdef MTIOCTOP
-	else	{
-	struct mtop	mtop	= { .mt_op	= opreq, .mt_count	= count, };
-	if (arg->vers > 0) {
-		int	xlate	= mtio_translate (opreq);
-		if (xlate != err) {
-			mtop.mt_op	= xlate;
+		struct mtop	mtop	= { .mt_op	= opreq, .mt_count	= count, };
+		if (arg->vers > 0) {
+			int	xlate	= mtio_translate (opreq);
+			if (xlate != err) {
+				mtop.mt_op	= xlate;
+			}
 		}
-	}
-	if (ioctl (arg->tape, MTIOCTOP, (char *) &mtop)==ok) {
-		reply (arg, count);
-	}
-	else	{
-		report_error (arg, errno);
-		result	= err;
-	}
+		if (ioctl (arg->tape, MTIOCTOP, (char *) &mtop)==ok) {
+			reply (arg, count);
+		}
+		else	{
+			report_error (arg, errno);
+			result	= err;
+		}
+# else
+		report_error (arg, ENOTSUP);
+		result		= err;
 # endif
 	}
+	return	result;
+}
+#ifdef MTIOCTOP
+enum	{
+	V1i_CACHE	= 0,
+	V1i_NOCACHE	= 1,
+	V1i_RETEN	= 2,
+	V1i_ERASE	= 3,
+	V1i_EOM		= 4,
+	V1i_NBSF	= 5,
+};
+static	int	mtio_ext_table[]	= {
+# if	defined(MTCACHE)
+	[V1i_CACHE]	= MTCACHE,
+# else
+	[V1i_CACHE]	= err,
+# endif
+# if	defined(MTNOCACHE)
+	[V1i_NOCACHE]	= MTNOCACHE,
+# else
+	[V1i_NOCACHE]	= err,
+# endif
+# if	defined(MTRETEN)
+	[V1i_RETEN]	= MTRETEN,
+# else
+	[V1i_RETEN]	= err,
+# endif
+# if	defined(MTERASE)
+	[V1i_ERASE]	= MTERASE,
+# else
+	[V1i_ERASE]	= err,
+# endif
+# if	defined(MTEOM)
+	[V1i_EOM]	= MTEOM,
+# else
+	[V1i_EOM]	= err,
+# endif
+# if	defined(MTNBSF)
+	[V1i_NBSF]	= MTNBSF,
+# else
+	[V1i_NBSF]	= err,
+# endif
+};
+
+enum	{
+	MAX_EXT_XLATE	= sizeof(mtio_ext_table)/sizeof(mtio_ext_table[0]),
+};
+# endif
+
+static	int	cmd_mtioctop_ext (arg_t* arg) {
+	int	result	= ok;
+	long	opreq	= get_number (arg->input);
+	long	count	= get_number (arg->input);
+
+# ifdef MTIOCTOP
+	if (arg->vers >= 1) {
+		struct mtop	mtop	= { .mt_op = opreq, .mt_count = count, };
+
+		if (opreq < MAX_EXT_XLATE) {
+			int	xlate	= mtio_ext_table [opreq];
+			if (xlate != err) {
+				mtop.mt_op	= xlate;
+				if (ioctl (arg->tape, MTIOCTOP, (char *) &mtop)==ok) {
+					reply (arg, count);
+				}
+				else	{
+					report_error (arg, errno);
+					result	= err;
+				}
+			}
+			else	{
+					report_error (arg, ENOTSUP);
+					result	= err;
+			}
+		}
+	}
+	else	{
+		report_error (arg, ENOTSUP);
+		result	= err;
+	}
+# else
+	report_error (arg, ENOTSUP);
+	result	= err;
+# endif
 	return	result;
 }
 
@@ -517,6 +604,7 @@ static	cmd_t	CMDS [256] =	{
 	['C'] = cmd_close,
 
 	['I'] = cmd_mtioctop,
+	['i'] = cmd_mtioctop_ext,
 	['S'] = cmd_mtio_status,
 };
 
