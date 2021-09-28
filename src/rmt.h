@@ -11,6 +11,7 @@ typedef	struct arg	{
 	int	output;
 	int	tape;
 	int	magtape;
+	int	vers;
 	struct	{
 		size_t	size;
 		char*	buffer;

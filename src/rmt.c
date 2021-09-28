@@ -441,13 +441,57 @@ static	int	cmd_mtio_status (arg_t* arg) {
 #endif
 	return	result;
 }
+#ifdef MTIOCTOP
+/*
+// Translation table for RMT V1.
+*/
+enum	{
+	V1_WEOF = 0, V1_FSF = 1, V1_BSF = 2, V1_FSR = 3, 
+	V1_BSR = 4, V1_REW = 5, V1_OFFL = 6, V1_NOP = 7,
+	V1_RETEN = 8, V1_ERASE = 9, V1_EOM = 10, 
+};
+static	int mtio_table [] = {
+	[V1_WEOF]	= MTWEOF,
+	[V1_FSF]	= MTFSF,
+	[V1_BSF]	= MTBSF,
+	[V1_FSR]	= MTFSR,
+	[V1_BSR]	= MTBSR,
+	[V1_REW]	= MTREW,
+	[V1_OFFL]	= MTOFFL,
+	[V1_NOP]	= MTNOP,
+	[V1_RETEN]	= MTRETEN,
+	[V1_ERASE]	= MTERASE,
+	[V1_EOM]	= MTEOM,
+};
+enum	{
+	MAX_XLATE	= sizeof(mtio_table)/sizeof(mtio_table[0]),
+};
+static	inline	int	mtio_translate (int op) {
+	int	result	= err;
+	if (op >= 0 && op < MAX_XLATE) {
+		result	= mtio_table [op];
+	}
+	return	result;
+}
+# endif
 static	int	cmd_mtioctop (arg_t* arg) {
 	int	result	= ok;
 	long	opreq	= get_number (arg->input);
 	long	count	= get_number (arg->input);
 
+	if (opreq == -1L && count == 0) {
+		arg->vers	= 1;
+		reply (arg, 1);
+	}
 #ifdef MTIOCTOP
+	else	{
 	struct mtop	mtop	= { .mt_op	= opreq, .mt_count	= count, };
+	if (arg->vers > 0) {
+		int	xlate	= mtio_translate (opreq);
+		if (xlate != err) {
+			mtop.mt_op	= xlate;
+		}
+	}
 	if (ioctl (arg->tape, MTIOCTOP, (char *) &mtop)==ok) {
 		reply (arg, count);
 	}
@@ -456,6 +500,7 @@ static	int	cmd_mtioctop (arg_t* arg) {
 		result	= err;
 	}
 # endif
+	}
 	return	result;
 }
 
@@ -499,6 +544,7 @@ int main (int argc, char **argv) {
 	arg_t	arg	= {
 		.input = STDIN_FILENO, .output = STDOUT_FILENO,
 		.tape = -1,
+		.vers = 0,
 		.record = { .buffer = 0, .size = 0, }
 	};
 	if (access_init () == err) {
