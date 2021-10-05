@@ -31,8 +31,16 @@ int	do_rmt (arg_t*, char*, int, char**);
 ssize_t safe_read (int fd, char* buf, ssize_t len);
 ssize_t full_write (int fd, char* buf, ssize_t len);
 
+void	reply (arg_t* arg, long status);
 void	reply_ext (arg_t* arg, long status, char* more);
 void	reply_ext_nostatus (arg_t*, char*);
 void	report_error (arg_t* arg, int error);
+
+int	is_tape_dev (int fd);
+int	mtioctop (arg_t* arg);
+int	mtioctop_ext (arg_t* arg);
+int	mtio_status (arg_t* arg);
+int	mtio_status_ext (arg_t* arg);
+
 
 # endif
