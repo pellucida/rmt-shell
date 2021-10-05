@@ -3,6 +3,7 @@ OBJ= access.o util.o cmd_extend.o parse_args.o
 
 RMT_OBJ=rmt.o
 CFLAGS= -I. -c -g
+LDFLAGS= -g
 
 CC=cc
 LD=$(CC)

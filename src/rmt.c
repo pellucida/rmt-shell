@@ -22,6 +22,9 @@
 # include	"rmt.h"
 # include	"cmd_extend.h"
 
+enum	{
+	FD_NONE	= -1,
+};
 ssize_t safe_read (int fd, char* buf, ssize_t len) {
 	ssize_t	n	= 0;
 	if (len <= 0)
@@ -49,19 +52,22 @@ ssize_t full_write (int fd, char* buf, ssize_t len) {
 	return n;
 }
 
-void	report_error (arg_t* arg, int error) {
+static	void	report_error_msg (arg_t* arg, int errcode, char* msg){
 	char	buf [BUFSIZ];
-	snprintf (buf, sizeof(buf), "E%d\n%s\n", error, strerror (error));
+	snprintf (buf, sizeof(buf), "E%d\n%s\n", errcode, msg);
 	full_write (arg->output, buf, strlen (buf));
+}
+void	report_error (arg_t* arg, int error) {
+	report_error_msg (arg, error, strerror(error));
 }
 
 
-static	void	reply (arg_t* arg, int status) {
+static	void	reply (arg_t* arg, long status) {
 	char	buf [BUFSIZ];
 	snprintf (buf, sizeof(buf), "A%ld\n", status);
 	full_write (arg->output, buf, strlen (buf));
 }
-void	reply_ext (arg_t* arg, int status, char* more) {
+void	reply_ext (arg_t* arg, long status, char* more) {
 	char	buf [BUFSIZ];
 	snprintf (buf, sizeof(buf), "A%ld\n%s\n", status, more);
 	full_write (arg->output, buf, strlen (buf));
@@ -142,6 +148,7 @@ static	openflags_t openflags[]	= {
  	FLAG_ENTRY( O_CREAT),
  	FLAG_ENTRY( O_TRUNC),
  	FLAG_ENTRY( O_APPEND),
+ 	FLAG_ENTRY( O_NONBLOCK),
 };
 static	size_t	N_OPENFLAGS	= sizeof(openflags)/sizeof(openflags[0]);
 # undef	FLAG_ENTRY
@@ -315,11 +322,15 @@ static	int	cmd_read (arg_t* arg) {
 
 static	int	cmd_close (arg_t* arg) {
 	char	device [PATH_MAX];
+/*
+//	Basically ignore the fd passed in Cn and close
+//	the 'tape' device fd - there is only one.
+*/
 	int	result	= read_str (arg->input, device, sizeof(device));
 	if (arg->tape >= 0) {
 		result	= close (arg->tape); 
 		if (result==ok) {
-			arg->tape	= -1;
+			arg->tape	= FD_NONE;
 			reply (arg, 0);
 		}	
 		else	{
@@ -332,7 +343,7 @@ static	int	cmd_close (arg_t* arg) {
 	return	result;
 }
 static	int	cmd_quit (arg_t* arg) {
-	if (arg->tape >= 0) {
+	if (arg->tape != FD_NONE) {
 		close (arg->tape);
 	}
 	reply (arg, 0);
@@ -340,32 +351,44 @@ static	int	cmd_quit (arg_t* arg) {
 	close (arg->output);
 	exit (EXIT_SUCCESS);
 }
-
+static	int	cmd_version (arg_t* arg) {
+	char	dummy [PATH_MAX];
+	int	result	= read_str (arg->input, dummy, sizeof(dummy));
+	reply (arg, arg->vers);
+	return	result;
+}
+/*
+// Note: replies with the fd number ie if open()->7 then A7
+*/
 static	int	cmd_open (arg_t* arg) {
 	char	device [PATH_MAX];
 	char	rwmode [PATH_MAX];
-
 	int	result	= read_str (arg->input, device, sizeof(device));
 	if (result == ok) {
 		result	= read_str (arg->input, rwmode, sizeof(rwmode));
 		if (result==ok) {
-			if (arg->tape) {
+			if (arg->tape != FD_NONE) {
 				close (arg->tape);
-				arg->tape	= -1;
+				arg->tape	= FD_NONE;
 			}
 			
 			if (access_check (device) == true) {
 				int	mode	= 0;
-				int	tape	= -1;
+				int	tape	= FD_NONE;
+				char*	symmode	= rwmode;
 
 				if (isdigit (rwmode[0])) {
-					mode	= strtoul (rwmode, 0, 10);
+					mode	= strtoul (rwmode, &symmode, 10);
+				}
+				if (arg->clntvers < 1) {
 					result	= heuristic_mode (device, &mode);
 				}
-				else	{
-					result	= get_open_mode (rwmode, &mode);
+				else if (symmode[0] != '\0') {
+					result	= get_open_mode (symmode, &mode);
 				}
 				if (result == ok) {
+					// Open NONBLOCK so tape status can be returned
+					mode	|= O_NONBLOCK;
 					if ((mode & O_CREAT)!=0) {
 						tape	= open (device, mode, 0660);
 					}
@@ -374,8 +397,22 @@ static	int	cmd_open (arg_t* arg) {
 					}
 				}
 				if (tape >= 0) {
+					int	flags	= fcntl (tape, F_GETFL, 0);
+					struct	stat	sbuf;
+					if (flags >= 0) { // Don't need this after open()
+						flags	&= ~O_NONBLOCK;
+						fcntl (tape, F_SETFL, flags);
+					}
+					if (fstat (tape, &sbuf)==0) {
+						if (S_ISCHR(sbuf.st_mode)) { 
+							struct mtop	mtop	= { .mt_op = MTNOP, .mt_count = 1, };
+							if (ioctl (tape, MTIOCTOP, (char *) &mtop)==ok) {
+								arg->magtape	= 1;
+							}
+						}
+					}
 					arg->tape	= tape;
-					reply (arg, 0);
+					reply (arg, tape);
 					result	= ok;
 				}
 				else	{
@@ -421,26 +458,99 @@ static	int	cmd_seek (arg_t* arg) {
 	return	result;
 }
 
+//
+// Doesn't consume a terminal '\n'
 // Not very useful - binary return
 static	int	cmd_mtio_status (arg_t* arg) {
-	char	dummy [PATH_MAX];
-	int	result	= ok;
-//	read_str (arg->input, dummy, sizeof(dummy));
-
-	
-#ifdef MTIOCGET
+	int	result	= err;
+# ifdef MTIOCGET
 	struct mtget	op;
-	if (ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
+	if (arg->magtape && ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
 		reply (arg, sizeof (op));
 		full_write (arg->output, (char *) &op, sizeof (op));
+		result	= ok;
 	}
 	else	{
 		report_error (arg, ENOTTY);
+	}
+# else
+	report_error (arg, ENOTTY);
+# endif
+	return	result;
+}
+enum	{			// struct mtget field 
+	MT_TYPE		= 'T',	// .mt_type
+	MT_DSREG	= 'D',	// .mt_dsret
+	MT_ERREG	= 'E',	// .mt_erreg
+	MT_RESID	= 'R',	// .mt_resid
+	MT_FILENO	= 'F',	// .mt_fileno
+	MT_BLKNO	= 'B',	// .mt_blkno
+	MT_FLAGS	= 'f',	// .mt_flags	- not linux
+	MT_BF		= 'b',	// .mt_bf	- not linux
+};
+//
+// 's' like 'S' command DOESN'T consume a '\n' [rmt(1)]
+//
+static	int	cmd_mtio_status_ext (arg_t* arg) {
+	int	result	= ok;
+	if (arg->clntvers > 0) {
+#ifdef MTIOCGET
+		char	subcmd [1];
+		struct mtget	op;
+		if (safe_read (arg->input, &subcmd[0], 1) == 1) {
+			if (!arg->magtape) {
+				report_error (arg, ENOTTY);
+				result	= err;
+			}
+			else if (ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
+				switch (subcmd[0]) {
+				case	MT_TYPE:
+					reply (arg, op.mt_type);
+				break;
+				case	MT_DSREG:
+					reply (arg, op.mt_dsreg);
+				break;
+				case	MT_ERREG:
+					reply (arg, op.mt_erreg);
+				break;
+				case	MT_RESID:
+					reply (arg, op.mt_resid);
+				break;
+				case	MT_FILENO:
+					reply (arg, op.mt_fileno);
+				break;
+				case	MT_BLKNO:
+					reply (arg, op.mt_blkno);
+				break;
+				default:
+					report_error (arg, EINVAL);
+					result	= err;
+				break;
+				}
+			}
+			else	{
+				report_error (arg, errno);
+				result	= err;
+			}
+		}
+		else	{
+			report_error (arg, EINVAL);
+			result	= err;
+		}
+	}
+	else	{
+		report_error (arg, ENOTSUP);
 		result	= err;
 	}
+# else
+		report_error (arg, ENOTSUP);
+		result	= err;
+	}		
 #endif
 	return	result;
 }
+
+
 #ifdef MTIOCTOP
 /*
 // Translation table for RMT V1.
@@ -480,13 +590,13 @@ static	int	cmd_mtioctop (arg_t* arg) {
 	long	count	= get_number (arg->input);
 
 	if (opreq == -1L && count == 0) {
-		arg->vers	= 1;
+		arg->clntvers	= 1;
 		reply (arg, 1);
 	}
 	else	{
 #ifdef MTIOCTOP
 		struct mtop	mtop	= { .mt_op	= opreq, .mt_count	= count, };
-		if (arg->vers > 0) {
+		if (arg->clntvers > 0) {
 			int	xlate	= mtio_translate (opreq);
 			if (xlate != err) {
 				mtop.mt_op	= xlate;
@@ -559,7 +669,7 @@ static	int	cmd_mtioctop_ext (arg_t* arg) {
 	long	count	= get_number (arg->input);
 
 # ifdef MTIOCTOP
-	if (arg->vers >= 1) {
+	if (arg->clntvers >= 1) {
 		struct mtop	mtop	= { .mt_op = opreq, .mt_count = count, };
 
 		if (opreq < MAX_EXT_XLATE) {
@@ -591,6 +701,21 @@ static	int	cmd_mtioctop_ext (arg_t* arg) {
 	return	result;
 }
 
+//
+// Permit null command after 'S' 's'
+//
+static	const	char null_cmd_ok[] = "Ss";
+static	int	cmd_nop (arg_t* arg){
+	int	result	= ok;
+	if (strchr (null_cmd_ok, arg->lastcmd) != 0) {
+		;	// Just ignore extraneous '\n'
+	}
+	else	{
+		report_error_msg (arg, 0, "Null Command");
+		result	= err;
+	}
+	return	result;
+}
 typedef	int	(*cmd_t)(arg_t*);
 
 static	cmd_t	CMDS [256] =	{
@@ -606,6 +731,9 @@ static	cmd_t	CMDS [256] =	{
 	['I'] = cmd_mtioctop,
 	['i'] = cmd_mtioctop_ext,
 	['S'] = cmd_mtio_status,
+	['s'] = cmd_mtio_status_ext,
+	['v'] = cmd_version,
+	['\n'] = cmd_nop,
 };
 
 
@@ -620,6 +748,7 @@ int	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 
 		if (cmd) {
 			cmd (arg);
+			arg->lastcmd	= command;
 		}
 		else {
 		      report_error (arg, ENOTSUP);
@@ -631,8 +760,10 @@ int	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 int main (int argc, char **argv) {
 	arg_t	arg	= {
 		.input = STDIN_FILENO, .output = STDOUT_FILENO,
-		.tape = -1,
-		.vers = 0,
+		.tape = FD_NONE,
+		.vers = 1,
+		.clntvers = 0,
+		.lastcmd = 'Q',
 		.record = { .buffer = 0, .size = 0, }
 	};
 	if (access_init () == err) {
