@@ -13,7 +13,6 @@ account can use <i>rmt</i> as a login shell.
 
 Remote clients eg dump, gtar will invoke /sbin/rmt -c /etc/rmt
 
-
 Some remote clients also do $RSH $SHELL -c uname 
 so <i>uname</i> is an internal command rmt shell capability.
 Programs like xfsdump use uname to determine the type of remote
@@ -23,6 +22,6 @@ tape device driver op codes to perform rewinds etc.
 eg HPUX vxdump, Tru64 vdump and xfsdump
 (We can lie ;)
 
-Supports SSH forced commandis by retrieving $SSH_ORIGINAL_COMMAND
+Supports SSH forced commands by retrieving $SSH_ORIGINAL_COMMAND
 from the environment.
 
