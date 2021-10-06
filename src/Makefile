@@ -19,8 +19,8 @@ distclean:	clean
 	rm -f rmt
 
 access.o: access.c util.h
-cmd_extend.o: cmd_extend.c constant.h util.h rmt.h access.h cmd_extend.h
-rmt.o: rmt.c constant.h util.h access.h rmt.h cmd_extend.h
-util.o: util.c constant.h util.h
+cmd_extend.o: cmd_extend.c util.h rmt.h access.h cmd_extend.h
+rmt.o: rmt.c util.h access.h rmt.h cmd_extend.h
+util.o: util.c util.h
 parse_args.o: parse_args.c util.h
-rmt_mtio.o: rmt_mtio.c constant.h rmt.h
+rmt_mtio.o: rmt_mtio.c util.h rmt.h

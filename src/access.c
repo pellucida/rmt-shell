@@ -8,8 +8,6 @@
 # include	<ctype.h>
 # include	<fnmatch.h>
 
-
-# include	"constant.h"
 # include	"util.h"
 # include	"access.h"
 

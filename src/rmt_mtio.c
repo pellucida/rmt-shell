@@ -11,7 +11,7 @@
 # include       <sys/stat.h>
 
 
-# include	"constant.h"
+# include	"util.h"
 # include	"rmt.h"
 
 # if 	!defined(MTIOCGET)
@@ -19,29 +19,25 @@
 // Don't have mtio.h just stub out.
 
 int	is_tape_dev (int tape) { return false; }
-int	mtio_status (arg_t* arg) { report_error (arg, ENOTSUP);  return err;}
-int	mtio_status_ext (arg_t* arg) { report_error (arg, ENOTSUP); return err; }
+void	mtio_status (arg_t* arg) { report_error (arg, ENOTSUP); }
+void	mtio_status_ext (arg_t* arg) { report_error (arg, ENOTSUP);}
 
 // Support I-1\n0 for librmt to communicate protocol version
-int	mtioctop (arg_t* arg) {
-	int	result	= err;
+void	mtioctop (arg_t* arg) {
 	long	opreq	= get_number (arg->input);
 	long	count	= get_number (arg->input);
 	if (opreq == -1L && count == 0) {
 		arg->clntvers	= 1;
 		reply (arg, 1);
-		result	= ok;
 	}
 	else	report_error (arg, ENOTSUP);
-	return	result;
 }
 
 // Just swallow 'i' args.
-int	mtioctop_ext (arg_t* arg) {
+void	mtioctop_ext (arg_t* arg) {
 	long	opreq	= get_number (arg->input);
 	long	count	= get_number (arg->input);
 	report_error (arg, ENOTSUP);
-	return err;
 }
 	
 # else
@@ -61,18 +57,15 @@ int	is_tape_dev (int tape) {
 	return	result;
 }
 
-int	mtio_status (arg_t* arg) {
-	int	result	= err;
+void	mtio_status (arg_t* arg) {
 	struct mtget	op;
 	if (arg->magtape && ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
 		reply (arg, sizeof (op));
 		full_write (arg->output, (char *) &op, sizeof (op));
-		result	= ok;
 	}
 	else	{
 		report_error (arg, ENOTTY);
 	}
-	return	result;
 }
 
 enum	{			// struct mtget field 
@@ -88,14 +81,12 @@ enum	{			// struct mtget field
 //
 // 's' like 'S' command DOESN'T consume a '\n' [rmt(1)]
 //
-int	mtio_status_ext (arg_t* arg) {
-	int	result	= ok;
+void	mtio_status_ext (arg_t* arg) {
 	char	subcmd [1];
 	struct mtget	op;
 	if (safe_read (arg->input, &subcmd[0], 1) == 1) {
 		if (!arg->magtape) {
 			report_error (arg, ENOTTY);
-			result	= err;
 		}
 		else if (ioctl (arg->tape, MTIOCGET, (char *) &op) >= 0) {
 			switch (subcmd[0]) {
@@ -119,20 +110,16 @@ int	mtio_status_ext (arg_t* arg) {
 			break;
 			default:
 				report_error (arg, EINVAL);
-				result	= err;
 			break;
 			}
 		}
 		else	{
 			report_error (arg, errno);
-			result	= err;
 		}
 	}
 	else	{
 		report_error (arg, EINVAL);
-		result	= err;
 	}
-	return	result;
 }
 
 /*
@@ -166,8 +153,7 @@ static	inline	int	mtio_translate (int op) {
 	}
 	return	result;
 }
-int	mtioctop (arg_t* arg) {
-	int	result	= ok;
+void	mtioctop (arg_t* arg) {
 	long	opreq	= get_number (arg->input);
 	long	count	= get_number (arg->input);
 
@@ -188,10 +174,8 @@ int	mtioctop (arg_t* arg) {
 		}
 		else	{
 			report_error (arg, errno);
-			result	= err;
 		}
 	}
-	return	result;
 }
 enum	{
 	V1i_CACHE	= 0,
@@ -237,8 +221,7 @@ static	int	mtio_ext_table[]	= {
 enum	{
 	MAX_EXT_XLATE	= sizeof(mtio_ext_table)/sizeof(mtio_ext_table[0]),
 };
-int	mtioctop_ext (arg_t* arg) {
-	int	result	= ok;
+void	mtioctop_ext (arg_t* arg) {
 	long	opreq	= get_number (arg->input);
 	long	count	= get_number (arg->input);
 
@@ -254,19 +237,15 @@ int	mtioctop_ext (arg_t* arg) {
 				}
 				else	{
 					report_error (arg, errno);
-					result	= err;
 				}
 			}
 			else	{
-					report_error (arg, ENOTSUP);
-					result	= err;
+				report_error (arg, ENOTSUP);
 			}
 		}
 	}
 	else	{
 		report_error (arg, ENOTSUP);
-		result	= err;
 	}
-	return	result;
 }
 # endif

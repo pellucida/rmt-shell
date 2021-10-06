@@ -37,10 +37,10 @@ void	reply_ext_nostatus (arg_t*, char*);
 void	report_error (arg_t* arg, int error);
 
 int	is_tape_dev (int fd);
-int	mtioctop (arg_t* arg);
-int	mtioctop_ext (arg_t* arg);
-int	mtio_status (arg_t* arg);
-int	mtio_status_ext (arg_t* arg);
+void	mtioctop (arg_t* arg);
+void	mtioctop_ext (arg_t* arg);
+void	mtio_status (arg_t* arg);
+void	mtio_status_ext (arg_t* arg);
 
 
 # endif

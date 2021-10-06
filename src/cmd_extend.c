@@ -7,7 +7,6 @@
 # include	<sys/stat.h>
 # include	<sys/utsname.h>
 
-# include	"constant.h"
 # include	"util.h"
 # include	"rmt.h"
 # include	"access.h"

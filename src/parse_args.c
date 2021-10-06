@@ -7,7 +7,6 @@
 # include	<stdbool.h>
 # include	<errno.h>
 
-# include	"constant.h"
 # include	"util.h"
 
 /*

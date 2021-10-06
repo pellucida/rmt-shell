@@ -15,7 +15,6 @@
 
 # include	<sys/socket.h>
 
-# include	"constant.h"
 # include	"util.h"
 # include	"access.h"
 # include	"rmt.h"
@@ -264,7 +263,7 @@ int	heuristic_mode (char* device, int* modep) {
 	return	result;
 }
 /* ----------------- */
-static	int	cmd_write (arg_t* arg) {
+static	void	cmd_write (arg_t* arg) {
 	size_t	size	= get_number (arg->input);
 	int	result	= ok;
 	ssize_t	n	= 0;
@@ -294,12 +293,10 @@ static	int	cmd_write (arg_t* arg) {
 			report_error (arg, errno);
 		}
 	}
-	return	result;
 }
 
-static	int	cmd_read (arg_t* arg) {
+static	void cmd_read (arg_t* arg) {
 	size_t	size	= get_number (arg->input);
-	int	result	= err;
 	ssize_t	n	= 0;
 	char*	buffer	= 0;
 
@@ -310,15 +307,13 @@ static	int	cmd_read (arg_t* arg) {
 	if (n >= 0) {
 		reply (arg, n);
 		full_write (arg->output, buffer, n); 
-		result	= ok;
 	}
 	else	{
 		report_error (arg, errno);
 	}
-	return	result;
 }
 
-static	int	cmd_close (arg_t* arg) {
+static	void	cmd_close (arg_t* arg) {
 	char	device [PATH_MAX];
 /*
 //	Basically ignore the fd passed in Cn and close
@@ -329,6 +324,7 @@ static	int	cmd_close (arg_t* arg) {
 		result	= close (arg->tape); 
 		if (result==ok) {
 			arg->tape	= FD_NONE;
+			arg->magtape	= false;
 			reply (arg, 0);
 		}	
 		else	{
@@ -338,9 +334,8 @@ static	int	cmd_close (arg_t* arg) {
 	else	{
 		report_error (arg, EBADF);
 	}
-	return	result;
 }
-static	int	cmd_quit (arg_t* arg) {
+static	void	cmd_quit (arg_t* arg) {
 	if (arg->tape != FD_NONE) {
 		close (arg->tape);
 	}
@@ -349,16 +344,15 @@ static	int	cmd_quit (arg_t* arg) {
 	close (arg->output);
 	exit (EXIT_SUCCESS);
 }
-static	int	cmd_version (arg_t* arg) {
+static	void	cmd_version (arg_t* arg) {
 	char	dummy [PATH_MAX];
 	int	result	= read_str (arg->input, dummy, sizeof(dummy));
 	reply (arg, arg->vers);
-	return	result;
 }
 /*
 // Note: replies with the fd number ie if open()->7 then A7
 */
-static	int	cmd_open (arg_t* arg) {
+static	void	cmd_open (arg_t* arg) {
 	char	device [PATH_MAX];
 	char	rwmode [PATH_MAX];
 	int	result	= read_str (arg->input, device, sizeof(device));
@@ -406,7 +400,6 @@ static	int	cmd_open (arg_t* arg) {
 					}
 					arg->tape	= tape;
 					reply (arg, tape);
-					result	= ok;
 				}
 				else	{
 					report_error (arg, errno);
@@ -418,7 +411,7 @@ static	int	cmd_open (arg_t* arg) {
 		}
 	}
 }
-static	int	cmd_seek (arg_t* arg) {
+static	void	cmd_seek (arg_t* arg) {
 	int	result	= ok;
 	long	where	= get_number (arg->input);
 	off_t	offset	= get_number (arg->input);
@@ -445,45 +438,37 @@ static	int	cmd_seek (arg_t* arg) {
 		}
 		else	{
 			report_error (arg, errno);
-			result	= err;
 		}
 	}
-	return	result;
 }
 
 //
 // Doesn't consume a terminal '\n'
 // Not very useful - binary return
-static	int	cmd_mtio_status (arg_t* arg) {
-	int	result	= mtio_status (arg);
-	return	result;
+static	void	cmd_mtio_status (arg_t* arg) {
+	mtio_status (arg);
 }
-static	int	cmd_mtio_status_ext (arg_t* arg) {
-	int	result	= mtio_status_ext (arg);
-	return	result;
+static	void	cmd_mtio_status_ext (arg_t* arg) {
+	mtio_status_ext (arg);
 }
 
-static	int	cmd_mtioctop (arg_t* arg) {
-	int	result	= mtioctop (arg);
+static	void	cmd_mtioctop (arg_t* arg) {
+	mtioctop (arg);
 }
-int	cmd_mtioctop_ext (arg_t* arg) {
-	int	result	= mtioctop_ext (arg);
-	return	result;
+static	void	cmd_mtioctop_ext (arg_t* arg) {
+	mtioctop_ext (arg);
 }
 
 static	const	char null_cmd_ok[] = "Ss";
-static	int	cmd_nop (arg_t* arg){
-	int	result	= ok;
+static	void	cmd_nop (arg_t* arg){
 	if (strchr (null_cmd_ok, arg->lastcmd) != 0) {
 		;	// Just ignore extraneous '\n'
 	}
 	else	{
 		report_error_msg (arg, 0, "Null Command");
-		result	= err;
 	}
-	return	result;
 }
-typedef	int	(*cmd_t)(arg_t*);
+typedef	void	(*cmd_t)(arg_t*);
 
 static	cmd_t	CMDS [256] =	{
 	['Q'] = cmd_quit,
@@ -505,6 +490,7 @@ static	cmd_t	CMDS [256] =	{
 
 
 int	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
+	int	result	= ok;
 	char	command	= 0;
 	while (1) {
 		cmd_t	cmd	= 0;
@@ -522,6 +508,7 @@ int	do_rmt (arg_t* arg, char* base, int argc, char* argv[]) {
 		      exit (EXIT_FAILURE);
 		}
 	}
+	return	result;
 }
 
 int main (int argc, char **argv) {

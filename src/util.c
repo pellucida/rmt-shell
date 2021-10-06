@@ -10,7 +10,6 @@
 # include	<pwd.h>
 # include	<grp.h>
 
-# include	"constant.h"
 # include	"util.h"
 
 
