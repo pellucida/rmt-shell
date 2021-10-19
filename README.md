@@ -26,12 +26,16 @@ tape:x:10024:Captive remote tape access:/home/tape:/opt/rmt/sbin/rmt
 
 ````
 #/opt/rmt/etc/access
+# Patterns are those implemented in fnmatch(3)
+# eg fnmatch ("/etc/nst0*", "/dev/nst0l", FNM_NOESCAPE|FNM_PATHNAME)
+#
 # Symbolic links are follow but both ends required
 # eg /dev/nrmt0h --> /devices/tape/std0h
+#
 /dev/nrmt0h
 /devices/tape/std0h
 # 
-/dev/nrst*
+/dev/nst*
 # File targets
 /export/dumps/*
 # For testing
