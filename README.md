@@ -164,26 +164,28 @@ whereas *dump* and *gnu tar* appear to have no problem.
 The most obvious problem is the *sprintf(3)* in **_rmt_open()** which will overflow *buffer[]* with *device* without warning.
 
 ````C
-# xfsdump-3.0.4/librmt/rmtlib.h
-49    #define BUFMAGIC	64
+# xfsdump-3.1.9/librmt/rmtlib.h
+46    #define BUFMAGIC	64
 
-# xfsdump-3.0.4/librmt/rmtopen.c
-85    static int _rmt_open (char *path, int oflag, int mode)
+# xfsdump-3.1.9/librmt/rmtopen.c
+87    static int _rmt_open (char *path, int oflag, int mode)
 ....
-88            char buffer[BUFMAGIC];
+90            char buffer[BUFMAGIC];
 ...
-90            char device[BUFMAGIC];
+92            char device[BUFMAGIC];
 ....
-268            sprintf(buffer, "O%s\n%d\n", device, oflag);
+270            sprintf(buffer, "O%s\n%d\n", device, oflag);
 ````
 
 but this will overflow *device[]* first unless **BUFMAGIC** &gt; *strlen(device)* &gt; **BUFMAGIC - 4**
 
 ````C
-# xfsdump-3.0.4/librmt/rmtopen.c
- 150            while (*path) {
- 151                    *dev++ = *path++;
+# xfsdump-3.1.9/librmt/rmtopen.c
+ 152            while (*path) {
+ 153                    *dev++ = *path++;
                 }
- 153            *dev = '\0';
+ 155            *dev = '\0';
 ````
+*Xfsdump* sources*
 
+*xfsdump* <https://mirrors.edge.kernel.org/pub/linux/utils/fs/xfs/xfsdump/xfsdump-3.1.9.tar.xz>
