@@ -11,6 +11,7 @@
 # include	"util.h"
 # include	"access.h"
 
+# if	defined(USE_ACCESS)
 enum	{
 	DEFAULT_LISTSIZE	= 64,
 };
@@ -129,3 +130,4 @@ int	access_check (char* devstr) {
 	}
 	return	result;
 }
+# endif

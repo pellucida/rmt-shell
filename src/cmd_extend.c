@@ -18,6 +18,7 @@ struct  entry {
 };
 typedef	struct	entry	entry_t;
 
+# if	defined(RMT_MKDIR)
 static  int    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
 	int	result	= EXIT_FAILURE;
         if (argc == 2) { 
@@ -39,6 +40,8 @@ static  int    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
 	}
 	return	result;
 }
+# endif
+# if	defined(RMT_STAT)
 static  int    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 	int	result	= EXIT_FAILURE;
 	
@@ -68,6 +71,8 @@ static  int    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 	}
 	return	result;
 }
+# endif
+# if	defined(RMT_UNAME)
 static  int    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
 	struct	utsname	u;
 	int	result	= EXIT_FAILURE;
@@ -84,12 +89,20 @@ static  int    do_uname (arg_t* arg, char* base, int argc, char* argv[]) {
 	}
 	return	result;
 }
+# endif
 
 static	entry_t   table[] = {
 	{ "rmt", do_rmt },
+
+# if	defined(RMT_MKDIR)
         { "mkdir", do_mkdir }, 
+# endif
+# if	defined(RMT_STAT)
         { "stat", do_stat }, 
+# endif
+# if	defined(RMT_UNAME)
         { "uname", do_uname }, 
+# endif
 };
 static  size_t  tablesize       = sizeof(table)/sizeof(table[0]);
 
@@ -127,6 +140,7 @@ void	cmd_extend (arg_t* arg, int argc, char* argv[]) {
 			if (lookup (base, &e)==true) {
 				exit (e->action (arg, base, nargc, nargv));
 			}
+			else	report_error (arg, ENOTSUP);
 		}
 		else	{
 			report_error (arg, errno);
