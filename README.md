@@ -186,6 +186,6 @@ but this will overflow *device[]* first unless **BUFMAGIC** &gt; *strlen(device)
                 }
  155            *dev = '\0';
 ````
-*Xfsdump* sources*
+#### *Xfsdump* sources
 
 *xfsdump* <https://mirrors.edge.kernel.org/pub/linux/utils/fs/xfs/xfsdump/xfsdump-3.1.9.tar.xz>
