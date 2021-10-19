@@ -1,3 +1,5 @@
+
+
 # Modified BSD */etc/rmt* as a captive shell
 
 The intention is to use *rmt* as the shell for a captive account **tape** (say) which  remote backup applications such as *dump*, *xfsdump* and *gnu tar* could use **SSH** to dump to a remote tape or regular file. 
@@ -139,3 +141,45 @@ dump-0.4b47/common/dumprmt.c
 498                    msg("cannot exec %s: %s\n", command[0], strerror(errno));
 
 ````
+
+## Also see
+The source of the */etc/rmt*  used in CentOS 7 is from Schily Tools <http://schilytools.sourceforge.net> in particular *star* <http://cdrtools.sourceforge.net/private/star.html>
+
+## Bugs
+
+Probably many but something that might surprise:
+
+the client library used *xfsdump*  (librmt) cannot handle long paths such as 
+
+````bash
+tape@dumphost:/dumps/servers/centos7/tintagieu/tintagieu-root-dump-2019-07-01_23:07:34.dump
+````
+
+whereas *dump* and *gnu tar* appear to have no problem.
+
+The most obvious problem is the *sprintf(3)* in **_rmt_open()** which will overflow *buffer[]* with *device* without warning.
+
+````C
+# xfsdump-3.0.4/librmt/rmtlib.h
+49    #define BUFMAGIC	64
+
+# xfsdump-3.0.4/librmt/rmtopen.c
+85    static int _rmt_open (char *path, int oflag, int mode)
+....
+88            char buffer[BUFMAGIC];
+...
+90            char device[BUFMAGIC];
+....
+268            sprintf(buffer, "O%s\n%d\n", device, oflag);
+````
+
+but this will overflow *device[]* first unless **BUFMAGIC** &gt; strlen(device)* &gt; **BUFMAGIC - 4**
+
+````C
+# xfsdump-3.0.4/librmt/rmtopen.c
+ 150            while (*path) {
+ 151                    *dev++ = *path++;
+                }
+ 153            *dev = '\0';
+````
+
