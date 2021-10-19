@@ -173,7 +173,7 @@ The most obvious problem is the *sprintf(3)* in **_rmt_open()** which will overf
 268            sprintf(buffer, "O%s\n%d\n", device, oflag);
 ````
 
-but this will overflow *device[]* first unless **BUFMAGIC** &gt; strlen(device)* &gt; **BUFMAGIC - 4**
+but this will overflow *device[]* first unless **BUFMAGIC** &gt; *strlen(device)* &gt; **BUFMAGIC - 4**
 
 ````C
 # xfsdump-3.0.4/librmt/rmtopen.c
