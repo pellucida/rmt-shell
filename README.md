@@ -189,3 +189,8 @@ but this will overflow *device[]* first unless **BUFMAGIC** &gt; *strlen(device)
 #### *Xfsdump* sources
 
 *xfsdump* <https://mirrors.edge.kernel.org/pub/linux/utils/fs/xfs/xfsdump/xfsdump-3.1.9.tar.xz>
+
+#### Fixes
+A minimal patch to fix the above is in *fixes/xfsdump-3.1.9-patch0*
+and a modified spec file to incorporate the patch
+*fixes/xfsdump-3.1.9.spec* 

@@ -1,0 +1,73 @@
+diff -Naur xfsdump-3.1.9-orig/librmt/rmtopen.c xfsdump-3.1.9/librmt/rmtopen.c
+--- xfsdump-3.1.9-orig/librmt/rmtopen.c	2019-08-21 06:56:59.000000000 +1000
++++ xfsdump-3.1.9/librmt/rmtopen.c	2021-09-09 23:08:18.579142518 +1000
+@@ -20,7 +20,12 @@
+  * along with this program; if not, write the Free Software Foundation,
+  * Inc.,  51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+  */
+-
++/*
++// Changed rmtopen() to detect a local file with ':' in path.
++// Changed _rmtopen() to dynamically size array for path components
++// and replaced sprintf() with snprintf()
++// - was core dumping with long (>56 char) device paths.
++*/
+ #include <unistd.h>
+ #include <errno.h>
+ #include <stdio.h>
+@@ -63,14 +68,17 @@
+ int oflag;
+ int mode;
+ {
+-	if (strchr (path, ':') != NULL)
+-	{
+-		return (_rmt_open (path, oflag, mode) | REM_BIAS);
+-	}
+-	else
+-	{
+-		return (open (path, oflag, mode));
++/* Heuristic: xxx/xxx:xxx is local, xxx:xxx[/] os remote
++// All else if local.
++*/
++	char*	colon	= strchr (path, ':');
++	char*	firstsep= strchr (path, '/');
++	if (colon != 0 && firstsep != 0) {
++		if (firstsep == 0 || colon < firstsep) {
++			return (_rmt_open (path, oflag, mode) | REM_BIAS);
++		}
+ 	}
++	return open (path, oflag, mode);
+ }
+ 
+ /*
+@@ -86,11 +94,12 @@
+ /* ARGSUSED */
+ static int _rmt_open (char *path, int oflag, int mode)
+ {
++	size_t	path_size	= strlen (path)+1;
+ 	int i, rc;
+-	char buffer[BUFMAGIC];
++	char buffer [path_size];
+ 	char system[MAXHOSTLEN];
+-	char device[BUFMAGIC];
+-	char login[BUFMAGIC];
++	char device [path_size];
++	char login [path_size];
+ 	char *sys, *dev, *user;
+         char *rsh_path;
+         char *rmt_path;
+@@ -267,7 +276,13 @@
+  *	now attempt to open the tape device
+  */
+ 
+-	sprintf(buffer, "O%s\n%d\n", device, oflag);
++//	sprintf(buffer, "O%s\n%d\n", device, oflag);
++	rc	= snprintf (buffer, sizeof(buffer), "O%s\n%d\n", device, oflag);
++	if (rc >= sizeof(buffer)) {
++		_rmt_msg(RMTWARN, _("rmtopen: RMT protocol O[pen] command overflows buffer\n"));
++		_rmt_abort (i);
++	}
++			
+ 	if (_rmt_command(i, buffer) == -1 || _rmt_status(i) == -1)
+ 		return(-1);
+ 
