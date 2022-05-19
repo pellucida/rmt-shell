@@ -147,7 +147,7 @@ dump-0.4b47/common/dumprmt.c
 ````
 
 ## Also see
-The source of the */etc/rmt*  used in CentOS 7 is from Schily Tools <http://schilytools.sourceforge.net> in particular *star* <http://cdrtools.sourceforge.net/private/star.html>
+The source of the */etc/rmt*  used in CentOS 7 is from the [late Jörg Schilling](https://minnie.tuhs.org/pipermail/tuhs/2021-October/024523.html)'s Schily Tools <http://schilytools.sourceforge.net> in particular *star* <http://cdrtools.sourceforge.net/private/star.html>
 
 ## Bugs
 
