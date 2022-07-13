@@ -11,6 +11,7 @@ CFLAGS	+= -DRESTRICT_ACCESS=\"$(ACCESS_FILE)\"
 
 # Implement builtin commands - only uname will be generally useful
 CFLAGS	+= -DRMT_MKDIR
+CFLAGS	+= -DRMT_UNLINK
 CFLAGS	+= -DRMT_STAT
 CFLAGS	+= -DRMT_UNAME
 
