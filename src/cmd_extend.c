@@ -41,6 +41,40 @@ static  int    do_mkdir (arg_t* arg, char* base, int argc, char* argv[]) {
 	return	result;
 }
 # endif
+# if	defined(RMT_UNLINK)
+static  int    do_unlink (arg_t* arg, char* base, int argc, char* argv[]) {
+	int	result	= EXIT_FAILURE;
+        if (argc == 2) { 
+                if (access_check (argv[1]) == true) {
+			struct	stat	sb;
+			if (lstat (argv[1], &sb)==ok) {
+				if (S_ISREG(sb.st_mode)) {
+					if (unlink (argv[1])==ok) {
+						reply_ext (arg, 0, "unlink");
+						result	= EXIT_SUCCESS;
+					}
+					else	{
+						report_error (arg, errno);
+					}
+				}
+				else	{
+					report_error (arg, EISDIR);
+				}
+			}
+			else	{
+				report_error (arg, errno);
+			}
+		}
+		else {
+			report_error (arg, EACCES);
+		}
+	}	
+	else	{
+		report_error (arg, EINVAL);
+	}
+	return	result;
+}
+# endif
 # if	defined(RMT_STAT)
 static  int    do_stat (arg_t* arg, char* base, int argc, char* argv[]) {
 	int	result	= EXIT_FAILURE;
@@ -96,6 +130,9 @@ static	entry_t   table[] = {
 
 # if	defined(RMT_MKDIR)
         { "mkdir", do_mkdir }, 
+# endif
+# if	defined(RMT_UNLINK)
+        { "unlink", do_unlink }, 
 # endif
 # if	defined(RMT_STAT)
         { "stat", do_stat }, 
