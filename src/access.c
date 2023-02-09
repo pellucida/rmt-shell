@@ -32,7 +32,7 @@ static	int	access_grow (size_t size) {
 		}
 	}
 	if (size > access.size) {
-		char** new	= realloc (access.list, size);
+		char** new	= realloc (access.list, size*sizeof(*new));
 		if (new) {
 			access.list	= new;
 			access.size	= size;
